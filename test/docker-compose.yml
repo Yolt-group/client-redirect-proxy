@@ -1,0 +1,29 @@
+version: "3.3"
+services:
+  site-management:
+    image: yolt/site-management:latest
+    build: site-management
+    volumes:
+      - ./pki:/etc/nginx/ssl
+  pis:
+    image: yolt/pis:latest
+    build: pis
+    volumes:
+      - ./pki:/etc/nginx/ssl
+  tests:
+    image: yolt/client-redirect-proxy-tests:latest
+    build: tests
+    depends_on:
+      - client-redirect-proxy
+    volumes:
+      - ./pki:/tmp
+  client-redirect-proxy:
+    image: yolt/client-redirect-proxy:latest
+    build: ../src
+    ports:
+      - 443:8443
+    depends_on:
+      - site-management
+      - pis
+    volumes:
+      - ./pki:/vault/secrets

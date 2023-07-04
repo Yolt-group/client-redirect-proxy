@@ -1,0 +1,15 @@
+# HELP ais_proxy Number of requests that have been proxied to ais.
+# TYPE ais_proxy counter
+ais_proxy 18
+# HELP pis_proxy Number of requests that have been proxied to pis.
+# TYPE pis_proxy counter
+pis_proxy 18
+# HELP invalid_posts Number of POST requests without a state parameter.
+# TYPE invalid_posts counter
+invalid_posts 1
+# HELP invalid_paths Number of requests made with an invalid path. We return 410 gone.
+# TYPE invalid_paths counter
+invalid_paths 2
+# TYPE logback_events_total counter
+logback_events_total{level="error"} 4
+logback_events_total{level="info"} 37

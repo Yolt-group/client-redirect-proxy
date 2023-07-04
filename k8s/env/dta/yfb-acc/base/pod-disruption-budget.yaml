@@ -1,0 +1,11 @@
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: client-redirect-proxy-pod-disruption-budget
+  labels:
+    name: client-redirect-proxy
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      name: client-redirect-proxy

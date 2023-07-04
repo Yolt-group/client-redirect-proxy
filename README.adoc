@@ -1,0 +1,63 @@
+= client redirect proxy
+
+CAUTION: It is **VERY** important you run tests locally when making changes because the tests do not run as part of the pipeline.
+
+This service is a reverse proxy that routes requests coming in on the public ingress `client-redirect` to one of these two services for further processing:
+
+- `site-management`
+- `pis`
+
+The routing decision is made based on one bit in the `state` parameter.
+The `state` parameter is assumed to be a https://en.wikipedia.org/wiki/Universally_unique_identifier[UUID] (conforming to regex `^[0-9a-zA-Z-]+$`).
+Requests with `state` parameters ending with a 0 bit are routed to `site-management`, `state` parameters ending with a 1 bit are sent to `pis`.
+
+Requests with a non-empty `state` parameter conforming to `[^0-9a-fA-F]$` are answered with a `HTTP 301` to https://www.yolt.com/error-pages/not-found.
+
+== Why?
+
+Good question.
+
+Yolt provides APIs to clients for both AIS and PIS services.
+Onboardings at banks for AIS and PIS are completely separate in principle, unfortunately we have not leveraged this fact and have onboarded for both AIS and PIS with an identical redirect url: `https://client-redirect.yts.yolt.io/`.
+Many onboardings are already in place and changing them is a time consuming affair.
+
+Internally, our AIS and PIS subsystems are completely separate and do not know of each others existence.
+Given that the URL on which users come back to us from a bank is identical for the two subsystems, we need to have at least 1 component in our system that 'knows' that we have both AIS and PIS.
+That is what this component is for.
+
+A prerequisite for the routing to not fail is that subsystems respect the subdivision of the "namespace" of UUIDs.
+The AIS subsystem must only generate `state` parameters ending in a 0 and, conversely, the PIS subsystem must only generate `state` parameters ending in a 1.
+As long as the respective subsystems use the library located at https://git.yolt.io/backend/ais-pis-oauth2-state/ consistently to generate `state` parameters, all is well.
+
+== Banks using fragment identifiers
+
+Aside from routing incoming requests to the correct service, this component also handles situations where a bank includes the oAuth parameters `state` and `code` as part of the https://en.wikipedia.org/wiki/URI_fragment[URL fragment].
+Typically, a bank will redirect a user to `https://example.com?state=$STATE&code=$CODE`, when a bank uses a fragment identifier the URL will look like this instead: `https://example.com#state=$STATE&code=$CODE`.
+The URL fragment is not included in the HTTP request that is sent to the server, and so we have to perform a trick to acquire the information in the fragment identifier.
+
+To this end we serve up `client-redirect.html` in case of a `GET` request without a `state` query parameter.
+The `client-redirect.html` file is a blank page with some javascript that does the following:
+
+1. append the complete URI fragment as a query parameter to the URL to which the form will be posted;
+2. include the complete `URI` in the post body under the name `url`.
+
+The reason for 1. is so that we can correctly route the request to the relevant subsystem based on the `state` parameter, unfortunately `nginx` cannot inspect the post body during the `NGX_HTTP_SERVER_REWRITE_PHASE`.
+
+The reason for 2. is that this is what our backend software (in both the AIS and PIS subsystem) expects.
+It is the responsibility of the backend software, to, based on `url`, do the following:
+
+- figure out to which unlicensed client the request belongs based on `state`
+- replace `https://client-redirect.yts.yolt.io/` with the redirectUrl of the corresponding client
+- return a `HTTP 301` which will send the user to the unlicensed clients system
+
+After that, the client is responsible for POST-ing the complete URL to the relevant endpoint for the relevant subsystem in the Yolt system.
+
+
+== Testing
+
+Run the tests by issuing the following command:
+```sh
+$ make test
+```
+
+The tests are not part of the pipeline at the time of writing because they require docker in docker and our gitlab CI does not permit us to use that functionality.
